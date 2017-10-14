@@ -316,7 +316,8 @@ METRIC_NAMES = [
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-q', '--query', required=True)
+    parser.add_argument('-p', '--page_id', required=False)
+    parser.add_argument('-q', '--query', required=False)
     parser.add_argument('-t', '--access_token', required=False)
     parser.add_argument('-i', '--app_id', required=False)
     parser.add_argument('-s', '--app_secret', required=False)
@@ -328,11 +329,14 @@ def main():
         app_id=args.app_id,
         app_secret=args.app_secret)
 
-    pages = client.search_pages(args.query, limit=1)
-    if pages:
-        page = pages[0]
+    if args.page_id:
+        page = {'id': args.page_id}
     else:
-        return 'No page found for query {}'.format(args.query)
+        pages = client.search_pages(args.query, limit=1)
+        if pages:
+            page = pages[0]
+        else:
+            return 'No page found for query {}'.format(args.query)
 
     result = []
     result.append({'page': page})
