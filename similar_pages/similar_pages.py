@@ -22,7 +22,8 @@ class FBClient:
 
     BASE_URL = 'https://graph.facebook.com/v2.10'
 
-    def __init__(self, app_id, app_secret):
+    def __init__(self, access_token=None, app_id=None, app_secret=None):
+        self._access_token = access_token
         self.app_id = app_id
         self.app_secret = app_secret
 
@@ -33,7 +34,13 @@ class FBClient:
 
     @property
     def access_token(self):
-        return '{}|{}'.format(self.app_id, self.app_secret)
+        if not self._access_token:
+            return '{}|{}'.format(self.app_id, self.app_secret)
+        return self._access_token
+
+    @access_token.setter
+    def access_token(self, v):
+        self._access_token = v
 
     def search_pages(self, q, limit):
         url = self.build_url(
@@ -62,12 +69,16 @@ METRIC_NAMES = [('page_fans_country', 'page_storytellers_by_country')]
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-q', '--query', required=True)
-    parser.add_argument('-i', '--app_id', required=True)
-    parser.add_argument('-s', '--app_secret', required=True)
+    parser.add_argument('-t', '--access_token', required=False)
+    parser.add_argument('-i', '--app_id', required=False)
+    parser.add_argument('-s', '--app_secret', required=False)
     parser.add_argument('-o', '--output', required=False)
     args = parser.parse_args()
 
-    client = FBClient(app_id=args.app_id, app_secret=args.app_secret)
+    client = FBClient(
+        access_token=args.access_token,
+        app_id=args.app_id,
+        app_secret=args.app_secret)
 
     pages = client.search_pages(args.query, limit=1)
     if pages:
