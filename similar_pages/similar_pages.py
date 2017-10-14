@@ -177,7 +177,7 @@ def main():
         metric='page_storytellers_by_country',
         period='days_28')
 
-    similar_pages = find_similar_pages(client, page['id'])
+    # similar_pages = find_similar_pages(client, page['id'])
 
     s = partial(json.dumps, indent=4, sort_keys=True)
     print('SEARCH RESULT:', s(page))
@@ -187,8 +187,8 @@ def main():
     print('LIKES BY COUNTRY:', s(fans))
     print()
     print('STORYTELLERS BY COUNTRY:', s(storytellers))
-    print()
-    print('SIMILAR PAGES:', s(similar_pages))
+    # print()
+    # print('SIMILAR PAGES:', s(similar_pages))
 
 
 if __name__ == '__main__':
