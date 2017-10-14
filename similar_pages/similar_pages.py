@@ -3,7 +3,7 @@ import argparse
 import json
 from datetime import datetime, timedelta
 from functools import partial
-from urllib.parse import urlencode
+from urllib import urlencode
 
 import requests
 from dateutil import parser
@@ -94,7 +94,7 @@ def main():
     dumped = json.dumps({'result': result}, indent=4)
 
     if args.output:
-        with open(args.output, 'w', encoding='utf-8') as f:
+        with open(args.output, 'wb') as f:
             f.write(dumped)
     else:
         sys.stdout.write(dumped)
