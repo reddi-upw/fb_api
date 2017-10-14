@@ -1,3 +1,4 @@
+import sys
 import argparse
 import json
 from datetime import datetime, timedelta
@@ -44,14 +45,15 @@ class FBClient:
         url = self.build_url(method='{}/likes'.format(page_id))
         return api_get(url)['data']
 
-    def fetch_page_insights(self, page_id, metric, period):
+    def fetch_page_insights(self, page_id, metric, params):
         url = self.build_url(
             method='{}/insights/{}'.format(page_id, metric),
-            params={'period': period})
-        try:
-            return api_get(url)['data'][0]['values'][-1]
-        except IndexError:
-            return None
+            params=params)
+
+        while url:
+            resp = api_get(url)
+            yield resp['data']
+            url = resp.get('paging', {}).get('next')
 
     def fetch_page_posts(self, page_id, limit=100):
         url = self.build_url(
@@ -150,11 +152,15 @@ def find_similar_pages(client, page_id):
     return aggregate_pages(result)
 
 
+METRIC_NAMES = [('page_fans_country', 'page_storytellers_by_country')]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-q', '--query', required=True)
     parser.add_argument('-i', '--app_id', required=True)
     parser.add_argument('-s', '--app_secret', required=True)
+    parser.add_argument('-o', '--output', required=False)
     args = parser.parse_args()
 
     client = FBClient(app_id=args.app_id, app_secret=args.app_secret)
@@ -165,30 +171,29 @@ def main():
     else:
         return 'No page found for query {}'.format(args.query)
 
-    page_likers = client.fetch_page_likers(page['id'])
+    result = []
+    result.append({'page': page})
+    result.append({'page_likers': client.fetch_page_likers(page['id'])})
 
-    fans = client.fetch_page_insights(
-        page_id=page['id'],
-        metric='page_fans_country',
-        period='lifetime')
+    metrics = []
+    for m in METRIC_NAMES:
+        gen = client.fetch_page_insights(
+            page_id=page['id'],
+            metric=','.join(m),
+            params={'period': 'week'})
 
-    storytellers = client.fetch_page_insights(
-        page_id=page['id'],
-        metric='page_storytellers_by_country',
-        period='days_28')
+        for data in gen:
+            metrics.extend(data)
+    metrics.sort(key=lambda m: m['name'])
 
-    # similar_pages = find_similar_pages(client, page['id'])
+    result.append({'metrics': metrics})
+    dumped = json.dumps({'result': result}, indent=4)
 
-    s = partial(json.dumps, indent=4, sort_keys=True)
-    print('SEARCH RESULT:', s(page))
-    print()
-    print('PAGE LIKERS:', s(page_likers))
-    print()
-    print('LIKES BY COUNTRY:', s(fans))
-    print()
-    print('STORYTELLERS BY COUNTRY:', s(storytellers))
-    # print()
-    # print('SIMILAR PAGES:', s(similar_pages))
+    if args.output:
+        with open(args.output, 'w', encoding='utf-8') as f:
+            f.write(dumped)
+    else:
+        sys.stdout.write(dumped)
 
 
 if __name__ == '__main__':
