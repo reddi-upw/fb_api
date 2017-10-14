@@ -18,7 +18,7 @@ def api_get(url):
     return r
 
 
-class FBClient:
+class FBClient(object):
 
     BASE_URL = 'https://graph.facebook.com/v2.10'
 
