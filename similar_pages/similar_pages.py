@@ -52,9 +52,10 @@ class FBClient:
         url = self.build_url(method='{}/likes'.format(page_id))
         return api_get(url)['data']
 
-    def fetch_page_insights(self, page_id, metric, params):
+    def fetch_page_insights(self, page_id, metrics, params):
+        params['metric'] = ','.join(metrics)
         url = self.build_url(
-            method='{}/insights/{}'.format(page_id, metric),
+            method='{}/insights'.format(page_id),
             params=params)
 
         while url:
@@ -94,7 +95,7 @@ def main():
     for m in METRIC_NAMES:
         gen = client.fetch_page_insights(
             page_id=page['id'],
-            metric=','.join(m),
+            metrics=m,
             params={'period': 'week'})
 
         for data in gen:
