@@ -42,18 +42,9 @@ class FBClient(object):
     def access_token(self, v):
         self._access_token = v
 
-    def fetch_user_posts(self, user_id='me', limit=1000, params=None):
+    def fetch_page_posts(self, page_id, limit=1000, params=None):
         url = self.build_url(
-            method='{}/posts'.format(user_id),
-            params=params)
-        while url:
-            resp = api_get(url)
-            yield resp['data']
-            url = resp.get('paging', {}).get('next')
-
-    def fetch_user_likes(self, user_id='me', limit=1000, params=None):
-        url = self.build_url(
-            method='{}/likes'.format(user_id),
+            method='{}/posts'.format(page_id),
             params=params)
         while url:
             resp = api_get(url)
@@ -84,7 +75,7 @@ def aggregate_pages(pages):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--access_token', required=True)
-    parser.add_argument('-u', '--user_id', required=False)
+    parser.add_argument('-p', '--page_id', required=True)
     parser.add_argument('-o', '--output', required=False)
     args = parser.parse_args()
 
@@ -92,22 +83,22 @@ def main():
 
     result = []
 
-    user_posts = []
-    for up in client.fetch_user_posts():
-        user_posts.extend(up)
-    result.append({'user_posts': user_posts})
+    page_posts = []
+    for pp in client.fetch_page_posts(args.page_id):
+        page_posts.extend(pp)
+    result.append({'page_posts': page_posts})
 
-    user_likes = []
-    for ul in client.fetch_user_likes():
-        user_likes.extend(ul)
+    page_likers = []
+    for pl in client.fetch_page_likers(args.page_id):
+        page_likers.extend(pl)
 
-    pages_likers = []
-    for p in user_likes:
-        for pl in client.fetch_page_likers(page_id=p['id']):
-            pages_likers.extend(pl)
+    page_page_likers = []
+    for pl in page_likers:
+        for ppl in client.fetch_page_likers(page_id=pl['id']):
+            page_page_likers.extend(ppl)
 
     ap = []
-    for p, c in aggregate_pages(pages_likers):
+    for p, c in aggregate_pages(page_page_likers):
         p['counter'] = c
         ap.append(p)
     result.append({'pages': ap})
