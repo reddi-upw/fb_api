@@ -1,6 +1,7 @@
 import sys
 import argparse
 import json
+from multiprocessing import Pool
 from datetime import datetime, timedelta
 from functools import partial
 from urllib import urlencode
@@ -48,25 +49,34 @@ class FBClient(object):
             params={'q': q, 'type': 'page', 'limit': limit})
         return api_get(url)['data']
 
-    def fetch_page_likers(self, page_id, limit=1000, params=None):
+    def fetch_page_likers(self, page_id, limit=100, params=None):
         url = self.build_url(
             method='{}/likes'.format(page_id),
             params=params)
+        l = 0
         while url:
             resp = api_get(url)
             yield resp['data']
+            l += len(resp['data'])
+            if l >= limit:
+                break
             url = resp.get('paging', {}).get('next')
 
-    def fetch_page_posts(self, page_id, limit=1000, params=None):
+    def fetch_page_posts(self, page_id, limit=100, params=None):
         url = self.build_url(
             method='{}/posts'.format(page_id),
             params=params)
+        l = 0
         while url:
             resp = api_get(url)
             yield resp['data']
+            l += len(resp['data'])
+            if l >= limit:
+                break
             url = resp.get('paging', {}).get('next')
 
-    def fetch_page_insights(self, page_id, metrics, params):
+    def fetch_page_insights(self, page_id, metrics, params=None):
+        params = params or {}
         params['metric'] = ','.join(metrics)
         url = self.build_url(
             method='{}/insights'.format(page_id),
@@ -328,6 +338,13 @@ METRIC_NAMES = [
 ]
 
 
+def fetch_all_page_likers(page, limit, client):
+    result = []
+    for pl in client.fetch_page_likers(page_id=page['id'], limit=limit):
+        result.extend(pl)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--page_id', required=False)
@@ -335,6 +352,8 @@ def main():
     parser.add_argument('-t', '--access_token', required=False)
     parser.add_argument('-i', '--app_id', required=False)
     parser.add_argument('-s', '--app_secret', required=False)
+    parser.add_argument(
+        '-l', '--limit', required=False, type=int, default=100)
     parser.add_argument('-o', '--output', required=False)
     args = parser.parse_args()
 
@@ -357,19 +376,22 @@ def main():
 
     likers = []
     likers_of_likers = []
-    for pl in client.fetch_page_likers(page['id']):
+    for pl in client.fetch_page_likers(page['id'], limit=args.limit):
         likers.extend(pl)
-        for l in pl:
-            for pll in client.fetch_page_likers(page_id=l['id']):
-                likers_of_likers.extend(pll)
+
+    pool = Pool(4)
+    worker = partial(fetch_all_page_likers, client=client, limit=args.limit)
+    for pl in pool.map(worker, likers):
+        likers_of_likers.extend(pl)
 
     result.extend(
         [{'likers': aggregate_pages(likers)},
          {'likers_of_likers': aggregate_pages(likers_of_likers)}])
 
     posts = []
-    for pp in client.fetch_page_posts(args.page_id):
+    for pp in client.fetch_page_posts(page['id'], limit=args.limit):
         posts.extend(pp)
+
     result.append({'posts': posts})
 
     metrics = []
