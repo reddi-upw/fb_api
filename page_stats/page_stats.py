@@ -91,6 +91,24 @@ class FBClient(object):
         url = self.build_url(method=str(page_id), params={'metadata': 1})
         return api_get(url)['metadata']
 
+    def search_interests(self, q):
+        url = self.build_url(
+            method='search',
+            params={'q': q, 'type': 'adinterest'})
+        return api_get(url)['data']
+
+
+def aggregate_categories(pages):
+    data = {}
+    for p in pages:
+        cat = p.get('category')
+        if not cat:
+            continue
+
+        val = data.get(cat, 0)
+        data[cat] = val + 1
+    return list(sorted(data.items(), key=lambda v: v[1], reverse=True))
+
 
 METRIC_NAMES = [
     ('page_stories',
@@ -408,9 +426,17 @@ def main():
     for pl in pool.map(worker, likers):
         likers_of_likers.extend(pl)
 
+    top_interests = []
+    for cat, n in aggregate_categories(likers + likers_of_likers)[:10]:
+        for c in cat.split('/'):
+            interests = client.search_interests(q=c)
+            if interests:
+                top_interests.append(interests[0])
+
     result.extend(
         [{'likers': aggregate_pages(likers)},
-         {'likers_of_likers': aggregate_pages(likers_of_likers)}])
+         {'likers_of_likers': aggregate_pages(likers_of_likers)},
+         {'top_interests': top_interests}])
 
     posts = []
     for pp in client.fetch_page_posts(page['id'], limit=args.limit):
