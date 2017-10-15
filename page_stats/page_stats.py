@@ -87,6 +87,10 @@ class FBClient(object):
             yield resp['data']
             url = resp.get('paging', {}).get('next')
 
+    def fetch_page_metadata(self, page_id):
+        url = self.build_url(method=str(page_id), params={'metadata': 1})
+        return api_get(url)['metadata']
+
 
 METRIC_NAMES = [
     ('page_stories',
@@ -338,7 +342,7 @@ METRIC_NAMES = [
 ]
 
 
-def fetch_all_page_likers(page, limit, client):
+def fetch_all_page_likers(page, limit, params, client):
     result = []
     for pl in client.fetch_page_likers(page_id=page['id'], limit=limit):
         result.extend(pl)
@@ -371,16 +375,36 @@ def main():
         else:
             return 'No page found for query {}'.format(args.query)
 
+    field_names = []
+    exclude = (
+        'access_token', 'app_id', 'ad_campaign', 'app_links', 'business',
+        'description_html', 'instant_articles_review_status',
+        'leadgen_form_preview_details', 'merchant_id', 'preferred_audience',
+        'promotion_eligible', 'recipient', 'supports_instant_articles',
+        'wifi_information')
+    for f in client.fetch_page_metadata(page['id'])['fields']:
+        if f['name'] not in exclude:
+            field_names.append(f['name'])
+    fields = ','.join(field_names)
+
     result = []
     result.append({'page': page})
 
     likers = []
     likers_of_likers = []
-    for pl in client.fetch_page_likers(page['id'], limit=args.limit):
+    for pl in client.fetch_page_likers(
+        page['id'],
+        params={'fields': fields},
+        limit=args.limit):
+
         likers.extend(pl)
 
     pool = Pool(4)
-    worker = partial(fetch_all_page_likers, client=client, limit=args.limit)
+    worker = partial(
+        fetch_all_page_likers,
+        client=client,
+        params={'fields': fields},
+        limit=args.limit)
     for pl in pool.map(worker, likers):
         likers_of_likers.extend(pl)
 
