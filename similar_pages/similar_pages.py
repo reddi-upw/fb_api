@@ -48,9 +48,23 @@ class FBClient(object):
             params={'q': q, 'type': 'page', 'limit': limit})
         return api_get(url)['data']
 
-    def fetch_page_likers(self, page_id, limit=1000):
-        url = self.build_url(method='{}/likes'.format(page_id))
-        return api_get(url)['data']
+    def fetch_page_likers(self, page_id, limit=1000, params=None):
+        url = self.build_url(
+            method='{}/likes'.format(page_id),
+            params=params)
+        while url:
+            resp = api_get(url)
+            yield resp['data']
+            url = resp.get('paging', {}).get('next')
+
+    def fetch_page_posts(self, page_id, limit=1000, params=None):
+        url = self.build_url(
+            method='{}/posts'.format(page_id),
+            params=params)
+        while url:
+            resp = api_get(url)
+            yield resp['data']
+            url = resp.get('paging', {}).get('next')
 
     def fetch_page_insights(self, page_id, metrics, params):
         params['metric'] = ','.join(metrics)
@@ -340,7 +354,23 @@ def main():
 
     result = []
     result.append({'page': page})
-    result.append({'page_likers': client.fetch_page_likers(page['id'])})
+
+    likers = []
+    likers_of_likers = []
+    for pl in client.fetch_page_likers(page['id']):
+        likers.extend(pl)
+        for l in pl:
+            for pll in client.fetch_page_likers(page_id=l['id']):
+                likers_of_likers.extend(pll)
+
+    result.extend(
+        [{'likers': aggregate_pages(likers)},
+         {'likers_of_likers': aggregate_pages(likers_of_likers)}])
+
+    posts = []
+    for pp in client.fetch_page_posts(args.page_id):
+        posts.extend(pp)
+    result.append({'posts': posts})
 
     metrics = []
     for m in METRIC_NAMES:
@@ -361,6 +391,18 @@ def main():
             f.write(dumped)
     else:
         sys.stdout.write(dumped)
+
+
+def aggregate_pages(pages):
+    data = {}
+    for p in pages:
+        val = data.get(p['id'])
+        if not val:
+            p['counter'] = 1
+            data[p['id']] = p
+        else:
+            val['counter'] += 1
+    return sorted(data.values(), key=lambda v: v['counter'], reverse=True)
 
 
 if __name__ == '__main__':
