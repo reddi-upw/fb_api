@@ -1,6 +1,7 @@
 import sys
 import argparse
 import json
+from multiprocessing import Pool
 from datetime import datetime, timedelta
 from functools import partial
 from urllib import urlencode
@@ -81,6 +82,13 @@ def aggregate_pages(pages):
     return sorted(data.values(), key=lambda v: v[1], reverse=True)
 
 
+def fetch_all_page_likers(page, client):
+    result = []
+    for pl in client.fetch_page_likers(page_id=page['id']):
+        result.extend(pl)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--access_token', required=True)
@@ -102,9 +110,10 @@ def main():
         user_likes.extend(ul)
 
     pages_likers = []
-    for p in user_likes:
-        for pl in client.fetch_page_likers(page_id=p['id']):
-            pages_likers.extend(pl)
+    p = Pool(4)
+    worker = partial(fetch_all_page_likers, client=client)
+    for pl in map(worker, user_likes):
+        pages_likers.extend(pl)
 
     ap = []
     for p, c in aggregate_pages(pages_likers):
