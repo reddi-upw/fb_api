@@ -19,6 +19,17 @@ def api_get(url):
     return r
 
 
+def api_paginate(url, limit=100):
+    l = 0
+    while url:
+        resp = api_get(url)
+        yield resp
+        l += len(resp['data'])
+        if l >= limit:
+            break
+        url = resp.get('paging', {}).get('next')
+
+
 class FBClient(object):
 
     BASE_URL = 'https://graph.facebook.com/v2.10'
@@ -43,61 +54,44 @@ class FBClient(object):
     def access_token(self, v):
         self._access_token = v
 
-    def search_pages(self, q, limit):
+    def search_pages(self, q, limit=100):
         url = self.build_url(
             method='search',
             params={'q': q, 'type': 'page', 'limit': limit})
-        return api_get(url)['data']
+        for p in api_paginate(url, limit=limit):
+            yield p['data']
 
-    def fetch_user_adaccounts(self, user_id='me', limit=1):
+    def fetch_user_adaccounts(self, user_id='me', limit=100):
         url = self.build_url(method='{}/adaccounts'.format(user_id))
-        l = 0
-        while url:
-            resp = api_get(url)
-            yield resp['data']
-            l += len(resp['data'])
-            if l >= limit:
-                break
-            url = resp.get('paging', {}).get('next')
+        for p in api_paginate(url, limit=limit):
+            yield p['data']
 
     def fetch_adcampaigns(self, adacc_id, limit=100, params=None):
         # https://developers.facebook.com/docs/marketing-api/reference/ad-account/campaigns/
         params = params or {}
-        url = self.build_url(method='{}/campaigns'.format(adacc_id))
-        l = 0
-        while url:
-            resp = api_get(url)
-            yield resp['data']
-            l += len(resp['data'])
-            if l >= limit:
-                break
-            url = resp.get('paging', {}).get('next')
+        url = self.build_url(
+            method='{}/campaigns'.format(adacc_id),
+            params=params)
+        for p in api_paginate(url, limit=limit):
+            yield p['data']
 
     def fetch_custom_audiences(self, adacc_id, limit=100, params=None):
         # https://developers.facebook.com/docs/marketing-api/reference/custom-audience#read
         params = params or {}
-        url = self.build_url(method='{}/customaudiences'.format(adacc_id))
-        l = 0
-        while url:
-            resp = api_get(url)
-            yield resp['data']
-            l += len(resp['data'])
-            if l >= limit:
-                break
-            url = resp.get('paging', {}).get('next')
+        url = self.build_url(
+            method='{}/customaudiences'.format(adacc_id),
+            params=params)
+        for p in api_paginate(url, limit=limit):
+            yield p['data']
 
     def fetch_adsets(self, adcamp_id, limit=100, params=None):
         # https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/adsets/
         params = params or {}
-        url = self.build_url(method='{}/adsets'.format(adcamp_id))
-        l = 0
-        while url:
-            resp = api_get(url)
-            yield resp['data']
-            l += len(resp['data'])
-            if l >= limit:
-                break
-            url = resp.get('paging', {}).get('next')
+        url = self.build_url(
+            method='{}/adsets'.format(adcamp_id),
+            params=params)
+        for p in api_paginate(url, limit=limit):
+            yield p['data']
 
     def fetch_page_likers(self, page_id, limit=100, params=None):
         url = self.build_url(
