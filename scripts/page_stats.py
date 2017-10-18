@@ -2,144 +2,9 @@ import sys
 import argparse
 import json
 from multiprocessing import Pool
-from datetime import datetime, timedelta
 from functools import partial
-from urllib import urlencode
 
-import requests
-from dateutil import parser
-
-
-def api_get(url):
-    r = requests.get(url).json()
-    e = r.get('error')
-    if e:
-        raise Exception(
-            'an error occured with url {}: {}'.format(url, e.get('message')))
-    return r
-
-
-def api_paginate(url, limit=100):
-    l = 0
-    while url:
-        resp = api_get(url)
-        yield resp
-        l += len(resp['data'])
-        if l >= limit:
-            break
-        url = resp.get('paging', {}).get('next')
-
-
-class FBClient(object):
-
-    BASE_URL = 'https://graph.facebook.com/v2.10'
-
-    def __init__(self, access_token=None, app_id=None, app_secret=None):
-        self._access_token = access_token
-        self.app_id = app_id
-        self.app_secret = app_secret
-
-    def build_url(self, method, params=None):
-        params = params or {}
-        params['access_token'] = self.access_token
-        return '{}/{}?{}'.format(self.BASE_URL, method, urlencode(params))
-
-    @property
-    def access_token(self):
-        if not self._access_token:
-            return '{}|{}'.format(self.app_id, self.app_secret)
-        return self._access_token
-
-    @access_token.setter
-    def access_token(self, v):
-        self._access_token = v
-
-    def search_pages(self, q, limit=100):
-        url = self.build_url(
-            method='search',
-            params={'q': q, 'type': 'page', 'limit': limit})
-        for p in api_paginate(url, limit=limit):
-            yield p['data']
-
-    def fetch_user_adaccounts(self, user_id='me', limit=100):
-        url = self.build_url(method='{}/adaccounts'.format(user_id))
-        for p in api_paginate(url, limit=limit):
-            yield p['data']
-
-    def fetch_adcampaigns(self, adacc_id, limit=100, params=None):
-        # https://developers.facebook.com/docs/marketing-api/reference/ad-account/campaigns/
-        params = params or {}
-        url = self.build_url(
-            method='{}/campaigns'.format(adacc_id),
-            params=params)
-        for p in api_paginate(url, limit=limit):
-            yield p['data']
-
-    def fetch_custom_audiences(self, adacc_id, limit=100, params=None):
-        # https://developers.facebook.com/docs/marketing-api/reference/custom-audience#read
-        params = params or {}
-        url = self.build_url(
-            method='{}/customaudiences'.format(adacc_id),
-            params=params)
-        for p in api_paginate(url, limit=limit):
-            yield p['data']
-
-    def fetch_adsets(self, adcamp_id, limit=100, params=None):
-        # https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/adsets/
-        params = params or {}
-        url = self.build_url(
-            method='{}/adsets'.format(adcamp_id),
-            params=params)
-        for p in api_paginate(url, limit=limit):
-            yield p['data']
-
-    def fetch_page_likers(self, page_id, limit=100, params=None):
-        url = self.build_url(
-            method='{}/likes'.format(page_id),
-            params=params)
-        l = 0
-        while url:
-            resp = api_get(url)
-            yield resp['data']
-            l += len(resp['data'])
-            if l >= limit:
-                break
-            url = resp.get('paging', {}).get('next')
-
-    def fetch_page_posts(self, page_id, limit=100, params=None):
-        url = self.build_url(
-            method='{}/posts'.format(page_id),
-            params=params)
-        l = 0
-        while url:
-            resp = api_get(url)
-            yield resp['data']
-            l += len(resp['data'])
-            if l >= limit:
-                break
-            url = resp.get('paging', {}).get('next')
-
-    def fetch_page_insights(self, page_id, metrics, params=None):
-        params = params or {}
-        params['metric'] = ','.join(metrics)
-        url = self.build_url(
-            method='{}/insights'.format(page_id),
-            params=params)
-
-        while url:
-            resp = api_get(url)
-            yield resp['data']
-            url = resp.get('paging', {}).get('next')
-
-    def fetch_page_metadata(self, page_id):
-        url = self.build_url(method=str(page_id), params={'metadata': 1})
-        return api_get(url)['metadata']
-
-    def search_interests(self, q):
-        url = self.build_url(
-            method='search',
-            params={'q': q, 'type': 'adinterest'})
-        return api_get(url)['data']
+from client import FBClient
 
 
 def aggregate_categories(pages):
@@ -152,6 +17,18 @@ def aggregate_categories(pages):
         val = data.get(cat, 0)
         data[cat] = val + 1
     return list(sorted(data.items(), key=lambda v: v[1], reverse=True))
+
+
+def aggregate_pages(pages):
+    data = {}
+    for p in pages:
+        val = data.get(p['id'])
+        if not val:
+            p['counter'] = 1
+            data[p['id']] = p
+        else:
+            val['counter'] += 1
+    return sorted(data.values(), key=lambda v: v['counter'], reverse=True)
 
 
 METRIC_NAMES = [
@@ -473,9 +350,10 @@ def main():
     top_interests = []
     for cat, n in aggregate_categories(likers + likers_of_likers)[:10]:
         for c in cat.split('/'):
-            interests = client.search_interests(q=c)
-            if interests:
-                top_interests.append(interests[0])
+            for interests in client.search_interests(q=c):
+                if interests:
+                    top_interests.append(interests[0])
+                break
 
     result.extend(
         [{'likers': aggregate_pages(likers)},
@@ -507,18 +385,6 @@ def main():
             f.write(dumped)
     else:
         sys.stdout.write(dumped)
-
-
-def aggregate_pages(pages):
-    data = {}
-    for p in pages:
-        val = data.get(p['id'])
-        if not val:
-            p['counter'] = 1
-            data[p['id']] = p
-        else:
-            val['counter'] += 1
-    return sorted(data.values(), key=lambda v: v['counter'], reverse=True)
 
 
 if __name__ == '__main__':
