@@ -49,6 +49,56 @@ class FBClient(object):
             params={'q': q, 'type': 'page', 'limit': limit})
         return api_get(url)['data']
 
+    def fetch_user_adaccounts(self, user_id='me', limit=1):
+        url = self.build_url(method='{}/adaccounts'.format(user_id))
+        l = 0
+        while url:
+            resp = api_get(url)
+            yield resp['data']
+            l += len(resp['data'])
+            if l >= limit:
+                break
+            url = resp.get('paging', {}).get('next')
+
+    def fetch_adcampaigns(self, adacc_id, limit=100, params=None):
+        # https://developers.facebook.com/docs/marketing-api/reference/ad-account/campaigns/
+        params = params or {}
+        url = self.build_url(method='{}/campaigns'.format(adacc_id))
+        l = 0
+        while url:
+            resp = api_get(url)
+            yield resp['data']
+            l += len(resp['data'])
+            if l >= limit:
+                break
+            url = resp.get('paging', {}).get('next')
+
+    def fetch_custom_audiences(self, adacc_id, limit=100, params=None):
+        # https://developers.facebook.com/docs/marketing-api/reference/custom-audience#read
+        params = params or {}
+        url = self.build_url(method='{}/customaudiences'.format(adacc_id))
+        l = 0
+        while url:
+            resp = api_get(url)
+            yield resp['data']
+            l += len(resp['data'])
+            if l >= limit:
+                break
+            url = resp.get('paging', {}).get('next')
+
+    def fetch_adsets(self, adcamp_id, limit=100, params=None):
+        # https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/adsets/
+        params = params or {}
+        url = self.build_url(method='{}/adsets'.format(adcamp_id))
+        l = 0
+        while url:
+            resp = api_get(url)
+            yield resp['data']
+            l += len(resp['data'])
+            if l >= limit:
+                break
+            url = resp.get('paging', {}).get('next')
+
     def fetch_page_likers(self, page_id, limit=100, params=None):
         url = self.build_url(
             method='{}/likes'.format(page_id),
