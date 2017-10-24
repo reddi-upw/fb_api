@@ -321,7 +321,7 @@ def main():
         'leadgen_form_preview_details', 'merchant_id', 'preferred_audience',
         'promotion_eligible', 'recipient', 'supports_instant_articles',
         'wifi_information')
-    for f in client.fetch_page_metadata(page['id'])['fields']:
+    for f in client.fetch_metadata(page['id'])['fields']:
         if f['name'] not in exclude:
             field_names.append(f['name'])
     fields = ','.join(field_names)

@@ -68,6 +68,13 @@ class FBClient(object):
         for p in api_paginate(url, limit=limit):
             yield p['data']
 
+    def search_groups(self, q, limit=100):
+        url = self.build_url(
+            method='search',
+            params={'q': q, 'type': 'group'})
+        for p in api_paginate(url, limit=limit):
+            yield p['data']
+
     def fetch_user_adaccounts(self, user_id='me', limit=100):
         url = self.build_url(method='{}/adaccounts'.format(user_id))
         for p in api_paginate(url, limit=limit):
@@ -125,6 +132,21 @@ class FBClient(object):
         for p in api_paginate(url, limit=limit):
             yield p['data']
 
-    def fetch_page_metadata(self, page_id):
-        url = self.build_url(method=str(page_id), params={'metadata': 1})
+    def fetch_group(self, group_id, params=None):
+        params = params or {}
+        url = self.build_url(
+            method=str(group_id),
+            params=params)
+        return api_get(url)
+
+    def fetch_group_connection(self, group_id, conn, limit=100, params=None):
+        params = params or {}
+        url = self.build_url(
+            method='{}/{}'.format(group_id, conn),
+            params=params)
+        for p in api_paginate(url, limit=limit):
+            yield p['data']
+
+    def fetch_metadata(self, obj_id):
+        url = self.build_url(method=str(obj_id), params={'metadata': 1})
         return api_get(url)['metadata']
