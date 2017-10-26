@@ -1,34 +1,10 @@
 import sys
 import argparse
 import json
-from multiprocessing import Pool
-from functools import partial
+
+from string import lowercase
 
 from client import FBClient
-
-
-def aggregate_categories(pages):
-    data = {}
-    for p in pages:
-        cat = p.get('category')
-        if not cat:
-            continue
-
-        val = data.get(cat, 0)
-        data[cat] = val + 1
-    return list(sorted(data.items(), key=lambda v: v[1], reverse=True))
-
-
-def aggregate_pages(pages):
-    data = {}
-    for p in pages:
-        val = data.get(p['id'])
-        if not val:
-            p['counter'] = 1
-            data[p['id']] = p
-        else:
-            val['counter'] += 1
-    return sorted(data.values(), key=lambda v: v['counter'], reverse=True)
 
 
 METRIC_NAMES = [
@@ -281,17 +257,42 @@ METRIC_NAMES = [
 ]
 
 
-def fetch_all_page_likers(page, limit, params, client):
-    result = []
-    for pl in client.fetch_page_likers(page_id=page['id'], limit=limit):
-        result.extend(pl)
-    return result
+def fetch_page(client, page_id, args):
+    field_names = []
+    exclude = (
+        'access_token', 'app_id', 'ad_campaign', 'app_links', 'business',
+        'description_html', 'instant_articles_review_status',
+        'leadgen_form_preview_details', 'merchant_id', 'preferred_audience',
+        'promotion_eligible', 'recipient', 'supports_instant_articles',
+        'wifi_information')
+    for f in client.fetch_metadata(page_id)['fields']:
+        if f['name'] not in exclude:
+            field_names.append(f['name'])
+    fields = ','.join(field_names)
+
+    page = client.fetch_page(page_id=page_id, params={'fields': fields})
+
+    posts = []
+    for pp in client.fetch_page_posts(page_id, limit=args.limit):
+        posts.extend(pp)
+    page['posts'] = posts
+
+    metrics = []
+    for m in METRIC_NAMES:
+        gen = client.fetch_page_insights(
+            page_id=page_id,
+            metrics=m,
+            params={'period': 'week'})
+
+        for data in gen:
+            metrics.extend(data)
+    metrics.sort(key=lambda m: m['name'])
+    page['metrics'] = metrics
+    return page
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--page_id', required=False)
-    parser.add_argument('-q', '--query', required=False)
     parser.add_argument('-t', '--access_token', required=False)
     parser.add_argument('-i', '--app_id', required=False)
     parser.add_argument('-s', '--app_secret', required=False)
@@ -305,79 +306,13 @@ def main():
         app_id=args.app_id,
         app_secret=args.app_secret)
 
-    if args.page_id:
-        page = {'id': args.page_id}
-    else:
-        pages = client.search_pages(args.query, limit=1)
-        if pages:
-            page = list(pages)[0][0]
-        else:
-            return 'No page found for query {}'.format(args.query)
-
-    field_names = []
-    exclude = (
-        'access_token', 'app_id', 'ad_campaign', 'app_links', 'business',
-        'description_html', 'instant_articles_review_status',
-        'leadgen_form_preview_details', 'merchant_id', 'preferred_audience',
-        'promotion_eligible', 'recipient', 'supports_instant_articles',
-        'wifi_information')
-    for f in client.fetch_metadata(page['id'])['fields']:
-        if f['name'] not in exclude:
-            field_names.append(f['name'])
-    fields = ','.join(field_names)
-
     result = []
-    result.append({'page': page})
+    for q in lowercase[:2]:
+        for chunk in client.search_pages(q, limit=args.limit):
+            page_ids = [p['id'] for p in chunk]
+            for page_id in page_ids:
+                result.append(fetch_page(client, page_id, args))
 
-    likers = []
-    likers_of_likers = []
-    for pl in client.fetch_page_likers(
-        page['id'],
-        params={'fields': fields},
-        limit=args.limit):
-
-        likers.extend(pl)
-
-    pool = Pool(4)
-    worker = partial(
-        fetch_all_page_likers,
-        client=client,
-        params={'fields': fields},
-        limit=args.limit)
-    for pl in pool.map(worker, likers):
-        likers_of_likers.extend(pl)
-
-    top_interests = []
-    for cat, n in aggregate_categories(likers + likers_of_likers)[:10]:
-        for c in cat.split('/'):
-            for interests in client.search_interests(q=c):
-                if interests:
-                    top_interests.append(interests[0])
-                break
-
-    result.extend(
-        [{'likers': aggregate_pages(likers)},
-         {'likers_of_likers': aggregate_pages(likers_of_likers)},
-         {'top_interests': top_interests}])
-
-    posts = []
-    for pp in client.fetch_page_posts(page['id'], limit=args.limit):
-        posts.extend(pp)
-
-    result.append({'posts': posts})
-
-    metrics = []
-    for m in METRIC_NAMES:
-        gen = client.fetch_page_insights(
-            page_id=page['id'],
-            metrics=m,
-            params={'period': 'week'})
-
-        for data in gen:
-            metrics.extend(data)
-    metrics.sort(key=lambda m: m['name'])
-
-    result.append({'metrics': metrics})
     dumped = json.dumps({'result': result}, indent=4)
 
     if args.output:

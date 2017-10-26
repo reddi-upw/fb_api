@@ -107,6 +107,13 @@ class FBClient(object):
         for p in api_paginate(url, limit=limit):
             yield p['data']
 
+    def fetch_page(self, page_id, params=None):
+        params = params or {}
+        url = self.build_url(
+            method=str(page_id),
+            params=params)
+        return api_get(url)
+
     def fetch_page_likers(self, page_id, limit=100, params=None):
         params = params or {}
         url = self.build_url(
