@@ -109,6 +109,7 @@ class FBClient(object):
 
     def fetch_page(self, page_id, params=None):
         params = params or {}
+
         url = self.build_url(
             method=str(page_id),
             params=params)

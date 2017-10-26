@@ -268,26 +268,23 @@ def fetch_page(client, page_id, args):
     for f in client.fetch_metadata(page_id)['fields']:
         if f['name'] not in exclude:
             field_names.append(f['name'])
+
+    metrics = []
+    for names in METRIC_NAMES:
+        metrics.extend(names)
+    m = ','.join(metrics)
+
+    field_names.extend(
+        ['feed.limit(100)',
+         'insights.metric({}).period(week).limit(100)'.format(m)])
     fields = ','.join(field_names)
 
     page = client.fetch_page(page_id=page_id, params={'fields': fields})
+    insights = page.get('insights', {})
+    insights.pop('paging', None)
 
-    posts = []
-    for pp in client.fetch_page_posts(page_id, limit=args.limit):
-        posts.extend(pp)
-    page['posts'] = posts
-
-    metrics = []
-    for m in METRIC_NAMES:
-        gen = client.fetch_page_insights(
-            page_id=page_id,
-            metrics=m,
-            params={'period': 'week'})
-
-        for data in gen:
-            metrics.extend(data)
-    metrics.sort(key=lambda m: m['name'])
-    page['metrics'] = metrics
+    feed = page.get('feed', {})
+    feed.pop('paging', None)
     return page
 
 
