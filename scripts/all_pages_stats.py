@@ -275,7 +275,7 @@ def fetch_page(client, page_id, args):
     m = ','.join(metrics)
 
     field_names.extend(
-        ['feed.limit(100)',
+        ['feed.limit(100){likes,created_time,message,name,comments{from}}',
          'insights.metric({}).period(week).limit(100)'.format(m)])
     fields = ','.join(field_names)
 
@@ -308,15 +308,16 @@ def main():
         for chunk in client.search_pages(q, limit=args.limit):
             page_ids = [p['id'] for p in chunk]
             for page_id in page_ids:
-                result.append(fetch_page(client, page_id, args))
+                page = fetch_page(client, page_id, args)
+                result.append(page)
+                dumped_page = json.dumps({'result': result}, indent=4)
+                sys.stdout.write(dumped_page)
 
     dumped = json.dumps({'result': result}, indent=4)
 
     if args.output:
         with open(args.output, 'wb') as f:
             f.write(dumped)
-    else:
-        sys.stdout.write(dumped)
 
 
 if __name__ == '__main__':
