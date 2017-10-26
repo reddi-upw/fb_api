@@ -307,7 +307,7 @@ def main():
         app_secret=args.app_secret)
 
     result = []
-    for q in lowercase[:2]:
+    for q in lowercase:
         for chunk in client.search_pages(q, limit=args.limit):
             page_ids = [p['id'] for p in chunk]
             for page_id in page_ids:
