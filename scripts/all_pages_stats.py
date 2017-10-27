@@ -1,7 +1,10 @@
 import sys
 import argparse
 import json
+from datetime import datetime
 
+from dateutil import parser
+from dateutil.relativedelta import relativedelta
 from elasticsearch import Elasticsearch
 
 import config
@@ -11,14 +14,16 @@ from client import FBClient
 def prepare_page_fields(fb, page_id):
     fields = []
     for f in fb.fetch_metadata(page_id)['fields']:
-        if f['name'] not in config.EXCLUDED_FIELDS:
-            fields.append(f['name'])
+        name = f['name']
+        if name not in config.EXCLUDED_FIELDS:
+            fields.append(name)
 
-    metrics = [
-        m for m in config.METRICS
-        if m not in config.EXCLUDED_METRICS]
+    metrics = []
+    for m in config.METRICS:
+        if m not in config.EXCLUDED_METRICS:
+            metrics.append(m)
+
     insights = 'insights.metric({})'.format(','.join(metrics))
-
     feed = 'feed.limit({}){{{}}}'.format(
         config.FEED_LIMIT,
         ','.join(config.FEED_FIELDS))
@@ -53,6 +58,17 @@ def search(fb):
                 yield page, cat
 
 
+def is_page_actual(page):
+    kwargs = {'{}s'.format(config.PERIOD): 1}
+    dt = datetime.utcnow() - relativedelta(**kwargs)
+    feed = page.get('feed', {}).get('data', [])
+    if feed:
+        post = feed[0]
+        return (
+            parser.parse(post['created_time']).replace(tzinfo=None) >= dt)
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--access_token', required=False)
@@ -71,14 +87,16 @@ def main():
 
     result = []
     for page, cat in search(fb=fb):
-        for post in page.get('feed', {}).get('data', []):
-            post.get('likes', {}).pop('paging', None)
-        page.get('feed', {}).pop('paging', None)
-        page.get('insights', {}).pop('paging', None)
-        page['category'] = cat
+        if is_page_actual(page):
+            for post in page.get('feed', {}).get('data', []):
+                post.get('likes', {}).pop('paging', None)
+            page.get('feed', {}).pop('paging', None)
+            page.get('insights', {}).pop('paging', None)
+            page['category'] = cat
 
-        es.index(index='pages', doc_type='page', body=page)
-        sys.stdout.write(json.dumps(page, indent=4))
+            result.append(page)
+            es.index(index='pages', doc_type='page', body=page)
+            sys.stdout.write(json.dumps(page, indent=4))
 
     if args.output:
         dumped = json.dumps({'result': result}, indent=4)

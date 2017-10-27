@@ -280,8 +280,10 @@ FEED_FIELDS = [
     'name'
     'comments.limit({}){{from}}'.format(FEED_COMMENTS_LIMIT)]
 
-PAGES_PER_CATEGORY_LIMIT = 1
+PAGES_PER_CATEGORY_LIMIT = 1000000
 
 ES_HOST = 'search-fb-page-index-tdqrbkfn5lqyiq4dxyj3ezv6r4.us-east-1.es.amazonaws.com'
 
 ES_PORT = 80
+
+PERIOD = 'week'
