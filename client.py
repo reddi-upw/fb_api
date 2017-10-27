@@ -158,3 +158,7 @@ class FBClient(object):
     def fetch_metadata(self, obj_id):
         url = self.build_url(method=str(obj_id), params={'metadata': 1})
         return api_get(url)['metadata']
+
+    def fetch_page_categories(self):
+        url = self.build_url(method='fb_page_categories')
+        return api_get(url)['data']
