@@ -100,7 +100,7 @@ def main():
             page['category'] = cat
 
             result.append(page)
-            # es.index(index='pages', doc_type='page', body=page)
+            es.index(index='pages', doc_type='page', body=page)
             sys.stdout.write(json.dumps(page, indent=4))
 
     if args.output:
