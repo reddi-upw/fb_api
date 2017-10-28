@@ -287,3 +287,5 @@ ES_HOST = 'search-fb-page-index-tdqrbkfn5lqyiq4dxyj3ezv6r4.us-east-1.es.amazonaw
 ES_PORT = 80
 
 PERIOD = 'week'
+
+NUM_THREADS = 5

@@ -2,6 +2,7 @@ import sys
 import argparse
 import json
 from datetime import datetime
+from threading import Thread
 
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
@@ -40,27 +41,24 @@ def parse_categories(categories):
             yield child
 
 
-def search(fb):
-    categories = fb.fetch_page_categories()
+def search_by_category(fb, category):
+    pages_gen = fb.search_pages(
+        q=category['name'],
+        limit=config.PAGES_PER_CATEGORY_LIMIT)
 
-    for cat in parse_categories(categories):
-        pages_gen = fb.search_pages(
-            q=cat['name'],
-            limit=config.PAGES_PER_CATEGORY_LIMIT)
-
-        for pages in pages_gen:
-            page_ids = [p['id'] for p in pages]
-            for page_id in page_ids:
-                try:
-                    fields = prepare_page_fields(fb, page_id)
-                    page = fb.fetch_page(
-                        page_id,
-                        params={'fields': ','.join(fields)})
-                except Exception as e:
-                    sys.stderr.write(
-                        'page_id {} failed: {}'.format(page_id, exc))
-                else:
-                    yield page, cat
+    for pages in pages_gen:
+        page_ids = [p['id'] for p in pages]
+        for page_id in page_ids:
+            try:
+                fields = prepare_page_fields(fb, page_id)
+                page = fb.fetch_page(
+                    page_id,
+                    params={'fields': ','.join(fields)})
+            except Exception as e:
+                sys.stderr.write(
+                    'page_id {} failed: {}'.format(page_id, exc))
+            else:
+                yield page
 
 
 def is_page_actual(page):
@@ -91,17 +89,35 @@ def main():
         hosts=[{'host': config.ES_HOST, 'port': config.ES_PORT}])
 
     result = []
-    for page, cat in search(fb=fb):
-        if is_page_actual(page):
-            for post in page.get('feed', {}).get('data', []):
-                post.get('likes', {}).pop('paging', None)
-            page.get('feed', {}).pop('paging', None)
-            page.get('insights', {}).pop('paging', None)
-            page['category'] = cat
+    categories = list(parse_categories(fb.fetch_page_categories()))
 
-            result.append(page)
-            es.index(index='pages', doc_type='page', body=page)
-            sys.stdout.write(json.dumps(page, indent=4))
+    def worker():
+        while True:
+            try:
+                cat = categories.pop()
+            except IndexError:
+                break
+            for page in search_by_category(fb, cat):
+                if is_page_actual(page):
+                    for post in page.get('feed', {}).get('data', []):
+                        post.get('likes', {}).pop('paging', None)
+
+                    page.get('feed', {}).pop('paging', None)
+                    page.get('insights', {}).pop('paging', None)
+                    page['category'] = cat
+
+                    result.append(page)
+                    es.index(index='pages', doc_type='page', body=page)
+                    sys.stdout.write(json.dumps(page, indent=4))
+
+    if config.NUM_THREADS > 1:
+        threads = [Thread(target=worker) for _ in range(config.NUM_THREADS)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    else:
+        worker()
 
     if args.output:
         dumped = json.dumps({'result': result}, indent=4)
