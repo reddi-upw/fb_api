@@ -56,7 +56,7 @@ def search_by_category(fb, category):
                     params={'fields': ','.join(fields)})
             except Exception as e:
                 sys.stderr.write(
-                    'page_id {} failed: {}'.format(page_id, e))
+                    u'page_id {} failed: {}'.format(page_id, e))
             else:
                 yield page
 

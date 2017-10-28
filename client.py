@@ -37,7 +37,7 @@ def api_paginate(url, limit=100):
         try:
             resp = api_get(url)
         except Exception as e:
-            sys.stderr.write('url {} failed: {}'.format(url, e))
+            sys.stderr.write(u'url {} failed: {}'.format(url, e))
         else:
             yield resp
             l += len(resp['data'])
