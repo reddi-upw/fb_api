@@ -51,11 +51,16 @@ def search(fb):
         for pages in pages_gen:
             page_ids = [p['id'] for p in pages]
             for page_id in page_ids:
-                fields = prepare_page_fields(fb, page_id)
-                page = fb.fetch_page(
-                    page_id,
-                    params={'fields': ','.join(fields)})
-                yield page, cat
+                try:
+                    fields = prepare_page_fields(fb, page_id)
+                    page = fb.fetch_page(
+                        page_id,
+                        params={'fields': ','.join(fields)})
+                except Exception as e:
+                    sys.stderr.write(
+                        'page_id {} failed: {}'.format(page_id, exc))
+                else:
+                    yield page, cat
 
 
 def is_page_actual(page):
@@ -95,7 +100,7 @@ def main():
             page['category'] = cat
 
             result.append(page)
-            es.index(index='pages', doc_type='page', body=page)
+            # es.index(index='pages', doc_type='page', body=page)
             sys.stdout.write(json.dumps(page, indent=4))
 
     if args.output:

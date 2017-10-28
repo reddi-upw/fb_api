@@ -1,3 +1,4 @@
+import time
 import sys
 import argparse
 import json
@@ -11,23 +12,38 @@ from dateutil import parser
 
 
 def api_get(url):
-    r = requests.get(url).json()
-    e = r.get('error')
-    if e:
-        raise Exception(
-            'an error occured with url {}: {}'.format(url, e.get('message')))
-    return r
+    attempt = 0
+    exc = None
+    while attempt < 3:
+        try:
+            r = requests.get(url).json()
+            e = r.get('error')
+            if e:
+                raise Exception(
+                    'an error occured with url {}: {}'.format(
+                        url, e.get('message')))
+        except Exception as e:
+            exc = e
+            attempt += 1
+            time.sleep(5)
+        else:
+            return r
+    raise exc
 
 
 def api_paginate(url, limit=100):
     l = 0
     while url:
-        resp = api_get(url)
-        yield resp
-        l += len(resp['data'])
-        if l >= limit:
-            break
-        url = resp.get('paging', {}).get('next')
+        try:
+            resp = api_get(url)
+        except Exception as e:
+            sys.stderr.write('url {} failed: {}'.format(url, e))
+        else:
+            yield resp
+            l += len(resp['data'])
+            if l >= limit:
+                break
+            url = resp.get('paging', {}).get('next')
 
 
 class FBClient(object):
