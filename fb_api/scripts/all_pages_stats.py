@@ -2,7 +2,7 @@ import sys
 import argparse
 import json
 from datetime import datetime
-from threading import Thread
+from threading import Thread, current_thread
 
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
@@ -19,17 +19,20 @@ def prepare_page_fields(fb, page_id):
         if name not in config.EXCLUDED_FIELDS:
             fields.append(name)
 
-    metrics = []
-    for m in config.METRICS:
-        if m not in config.EXCLUDED_METRICS:
-            metrics.append(m)
+    if config.FEED_FIELDS:
+        fields.append(
+            'feed.limit({}){{{}}}'.format(
+                config.FEED_LIMIT,
+                ','.join(config.FEED_FIELDS)))
 
-    insights = 'insights.metric({})'.format(','.join(metrics))
-    feed = 'feed.limit({}){{{}}}'.format(
-        config.FEED_LIMIT,
-        ','.join(config.FEED_FIELDS))
+    if config.METRICS:
+        metrics = []
+        for m in config.METRICS:
+            if m not in config.EXCLUDED_METRICS:
+                metrics.append(m)
+        fields.append(
+            'insights.metric({})'.format(','.join(metrics)))
 
-    fields.extend([feed, insights])
     return fields
 
 
@@ -56,7 +59,10 @@ def search_by_category(fb, category):
                     params={'fields': ','.join(fields)})
             except Exception as e:
                 sys.stderr.write(
-                    u'page_id {} failed: {}'.format(page_id, e))
+                    u'page_id {} failed: {}, thread_id={}\n'.format(
+                        page_id,
+                        e,
+                        current_thread().ident))
             else:
                 yield page
 

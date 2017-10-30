@@ -45,7 +45,7 @@ def api_paginate(url, limit=100):
 class FBClient(object):
 
     BASE_URL = 'https://graph.facebook.com/v2.10'
-    FB_LIMIT = 100
+    FB_MAX_LIMIT = 100
 
     def __init__(self, access_token=None, app_id=None, app_secret=None):
         self._access_token = access_token
@@ -70,37 +70,46 @@ class FBClient(object):
     def search_pages(self, q, limit=100):
         url = self.build_url(
             method='search',
-            params={'q': q, 'type': 'page', 'limit': self.FB_LIMIT})
+            params={
+                'q': q,
+                'type': 'page',
+                'limit': min(limit, self.FB_MAX_LIMIT)})
         for p in api_paginate(url, limit=limit):
             yield p['data']
 
     def search_interests(self, q, limit=100):
         url = self.build_url(
             method='search',
-            params={'q': q, 'type': 'adinterest', 'limit': self.FB_LIMIT})
+            params={
+                'q': q,
+                'type': 'adinterest',
+                'limit': min(limit, self.FB_MAX_LIMIT)})
         for p in api_paginate(url, limit=limit):
             yield p['data']
 
     def search_groups(self, q, limit=100):
         url = self.build_url(
             method='search',
-            params={'q': q, 'type': 'group', 'limit': self.FB_LIMIT})
+            params={
+                'q': q,
+                'type': 'group',
+                'limit': min(limit, self.FB_MAX_LIMIT)})
         for p in api_paginate(url, limit=limit):
             yield p['data']
 
     def fetch_user_adaccounts(self, user_id='me', limit=100, params=None):
         params = params or {}
-        params.setdefault('limit', self.FB_LIMIT)
+        params.setdefault('limit', min(limit, self.FB_MAX_LIMIT))
         url = self.build_url(
             method='{}/adaccounts'.format(user_id),
-            params={'limit': self.FB_LIMIT})
+            params={'limit': min(limit, self.FB_MAX_LIMIT)})
         for p in api_paginate(url, limit=limit):
             yield p['data']
 
     def fetch_adcampaigns(self, adacc_id, limit=100, params=None):
         # docs/marketing-api/reference/ad-account/campaigns/
         params = params or {}
-        params.setdefault('limit', self.FB_LIMIT)
+        params.setdefault('limit', min(limit, self.FB_MAX_LIMIT))
         url = self.build_url(
             method='{}/campaigns'.format(adacc_id),
             params=params)
@@ -110,7 +119,7 @@ class FBClient(object):
     def fetch_custom_audiences(self, adacc_id, limit=100, params=None):
         # docs/marketing-api/reference/custom-audience#read
         params = params or {}
-        params.setdefault('limit', self.FB_LIMIT)
+        params.setdefault('limit', min(limit, self.FB_MAX_LIMIT))
         url = self.build_url(
             method='{}/customaudiences'.format(adacc_id),
             params=params)
@@ -120,7 +129,7 @@ class FBClient(object):
     def fetch_adsets(self, adcamp_id, limit=100, params=None):
         # docs/marketing-api/reference/ad-campaign-group/adsets/
         params = params or {}
-        params.setdefault('limit', self.FB_LIMIT)
+        params.setdefault('limit', min(limit, self.FB_MAX_LIMIT))
         url = self.build_url(
             method='{}/adsets'.format(adcamp_id),
             params=params)
@@ -134,7 +143,7 @@ class FBClient(object):
 
     def fetch_page_likers(self, page_id, limit=100, params=None):
         params = params or {}
-        params.setdefault('limit', self.FB_LIMIT)
+        params.setdefault('limit', min(limit, self.FB_MAX_LIMIT))
         url = self.build_url(
             method='{}/likes'.format(page_id),
             params=params)
@@ -143,7 +152,7 @@ class FBClient(object):
 
     def fetch_page_posts(self, page_id, limit=100, params=None):
         params = params or {}
-        params.setdefault('limit', self.FB_LIMIT)
+        params.setdefault('limit', min(limit, self.FB_MAX_LIMIT))
         url = self.build_url(
             method='{}/posts'.format(page_id),
             params=params)
@@ -152,7 +161,7 @@ class FBClient(object):
 
     def fetch_page_insights(self, page_id, metrics, limit=100, params=None):
         params = params or {}
-        params.setdefault('limit', self.FB_LIMIT)
+        params.setdefault('limit', min(limit, self.FB_MAX_LIMIT))
         params['metric'] = ','.join(metrics)
         url = self.build_url(
             method='{}/insights'.format(page_id),
@@ -167,7 +176,7 @@ class FBClient(object):
 
     def fetch_group_connection(self, group_id, conn, limit=100, params=None):
         params = params or {}
-        params.setdefault('limit', self.FB_LIMIT)
+        params.setdefault('limit', min(limit, self.FB_MAX_LIMIT))
         url = self.build_url(
             method='{}/{}'.format(group_id, conn), params=params)
         for p in api_paginate(url, limit=limit):

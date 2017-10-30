@@ -275,7 +275,7 @@ FEED_FIELDS = [
     'likes.limit({})'.format(FEED_LIKES_LIMIT),
     'created_time',
     'message',
-    'name'
+    'name',
     'comments.limit({}){{from}}'.format(FEED_COMMENTS_LIMIT)]
 
 PAGES_PER_CATEGORY_LIMIT = 1
