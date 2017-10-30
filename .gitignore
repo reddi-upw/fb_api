@@ -3,4 +3,4 @@ __pycache__/
 
 *.sw?
 
-local_settings.py
+local_config.py
