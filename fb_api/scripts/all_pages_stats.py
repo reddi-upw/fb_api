@@ -8,8 +8,8 @@ from dateutil import parser
 from dateutil.relativedelta import relativedelta
 from elasticsearch import Elasticsearch
 
-import config
-from client import FBClient
+from . import config
+from ..client import FBClient
 
 
 def prepare_page_fields(fb, page_id):

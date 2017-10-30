@@ -5,8 +5,8 @@ from urlparse import urlsplit, parse_qsl
 import requests
 from flask import Flask, session, request, redirect, jsonify, url_for
 
-import settings
-from client import FBClient
+from . import config
+from ..client import FBClient
 
 
 FB_SCOPE = ['ads_management', 'ads_read',]
@@ -48,16 +48,20 @@ AUDIENCE_FIELDS = (
 app = Flask(__name__)
 
 
-def flatten(g):
+def flatten(g, limit=100):
+    count = 0
     for values in g:
         for value in values:
+            count += 1
+            if count > limit:
+                return
             yield value
 
 
 @app.route("/")
 def start():
-    if hasattr(settings, "ACCESS_TOKEN"):
-        session["access_token"] = settings.ACCESS_TOKEN
+    if hasattr(config, "ACCESS_TOKEN"):
+        session["access_token"] = config.ACCESS_TOKEN
         return redirect(url_for("adcampaigns"))
     return redirect(url_for("fb_dialog"))
 
@@ -65,7 +69,7 @@ def start():
 @app.route("/fb-dialog")
 def fb_dialog():
     return redirect(
-        settings.FB_DIALOG_URL.format(
+        config.FB_DIALOG_URL.format(
             client_id=CLIENT_ID,
             redirect_uri=REDIRECT_URL,
             scope=','.join(FB_SCOPE)),
@@ -78,7 +82,7 @@ def fb_token():
     q = dict(parse_qsl(q))
     code = q.get('code')
 
-    url = settings.FB_TOKEN_URL.format(
+    url = config.FB_TOKEN_URL.format(
         client_id=CLIENT_ID,
         redirect_uri=REDIRECT_URL,
         client_secret=CLIENT_SECRET,

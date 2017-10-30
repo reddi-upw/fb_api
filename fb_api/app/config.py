@@ -18,4 +18,4 @@ FB_TOKEN_URL = (
     "code={code}")
 
 
-from local_settings import *
+from .local_config import *
